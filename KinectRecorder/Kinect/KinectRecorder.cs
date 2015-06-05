@@ -306,41 +306,35 @@ namespace laht.info
                                 // calculate index into depth array
                                 int depthIndex = (y * depthWidth) + x;
 
-                                byte player = this.bodyIndexFrameData[depthIndex];
+                                CameraSpacePoint p = this.cameraPoints[depthIndex];
 
-                                // if we're tracking a player for the current pixel, sets its color and alpha to full
-                                if (player != 0xff)
+                                // retrieve the depth to color mapping for the current depth pixel
+                                ColorSpacePoint colorPoint = this.colorPoints[depthIndex];
+
+                                byte r = 0; byte g = 0; byte b = 0;
+
+                                // make sure the depth pixel maps to a valid point in color space
+                                int colorX = (int)Math.Floor(colorPoint.X + 0.5);
+                                int colorY = (int)Math.Floor(colorPoint.Y + 0.5);
+
+                                if ((colorX >= 0) && (colorX < colorWidth) && (colorY >= 0) && (colorY < colorHeight))
                                 {
+                                    // calculate index into color array
+                                    int colorIndex = ((colorY * colorWidth) + colorX) * this.bytesPerPixel;
 
-                                    CameraSpacePoint p = this.cameraPoints[depthIndex];
+                                    // set source for copy to the color pixel
+                                    int displayIndex = depthIndex * this.bytesPerPixel;
 
-                                    // retrieve the depth to color mapping for the current depth pixel
-                                    ColorSpacePoint colorPoint = this.colorPoints[depthIndex];
+                                    b = this.colorFrameData[colorIndex++];
+                                    g = this.colorFrameData[colorIndex++];
+                                    r = this.colorFrameData[colorIndex++];
 
-                                    byte r = 0; byte g = 0; byte b = 0;
+                                }
 
-                                    // make sure the depth pixel maps to a valid point in color space
-                                    int colorX = (int)Math.Floor(colorPoint.X + 0.5);
-                                    int colorY = (int)Math.Floor(colorPoint.Y + 0.5);
-                                    if ((colorX >= 0) && (colorX < colorWidth) && (colorY >= 0) && (colorY < colorHeight))
-                                    {
-                                        // calculate index into color array
-                                        int colorIndex = ((colorY * colorWidth) + colorX) * this.bytesPerPixel;
-
-                                        // set source for copy to the color pixel
-                                        int displayIndex = depthIndex * this.bytesPerPixel;
-
-                                        b = this.colorFrameData[colorIndex++];
-                                        g = this.colorFrameData[colorIndex++];
-                                        r = this.colorFrameData[colorIndex++];
-
-                                    }
-
-                                    if (!(Double.IsInfinity(p.X)) && !(Double.IsInfinity(p.Y)) && !(Double.IsInfinity(p.Z)))
-                                    {
-                                        sb.Append(String.Format(CultureInfo.InvariantCulture, "{0} {1} {2} {3} {4} {5}\n", p.X, p.Y, p.Z, r, g, b));
-                                        len++;
-                                    }
+                                if (!(Double.IsInfinity(p.X)) && !(Double.IsInfinity(p.Y)) && !(Double.IsInfinity(p.Z)))
+                                {
+                                    sb.Append(String.Format(CultureInfo.InvariantCulture, "{0} {1} {2} {3} {4} {5}\n", p.X, p.Y, p.Z, r, g, b));
+                                    len++;
                                 }
                             }
                         }
