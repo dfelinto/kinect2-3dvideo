@@ -53,7 +53,7 @@ namespace laht.info
         private string path = @"cloud" + DateTime.SpecifyKind(DateTime.Now, DateTimeKind.Local).ToShortDateString() + ".zip";
 
         private const int minNumOfPoints = 10000;
-        private const int maxNumOfFrames = 200;
+        private const int maxNumOfFrames = 1000;
         private const int step = 2;
 
         private bool done = false;
