@@ -336,6 +336,11 @@ namespace laht.info
                                     sb.Append(String.Format(CultureInfo.InvariantCulture, "{0} {1} {2} {3} {4} {5}\n", p.X, p.Y, p.Z, r, g, b));
                                     len++;
                                 }
+                                else
+                                {
+                                    sb.Append(String.Format(CultureInfo.InvariantCulture, "0 0 0 0 0\n"));
+                                    len++;
+                                }
                             }
                         }
 
