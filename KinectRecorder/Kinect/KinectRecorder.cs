@@ -163,7 +163,7 @@ namespace laht.info
             Console.ReadLine();
 
             Console.WriteLine("Flushing data to disk..");
-            using (FileStream zipToOpen = new FileStream(this.path, FileMode.Create))
+            using (FileStream zipToOpen = new FileStream(this.path.Replace("/", "-"), FileMode.Create))
             {
                 using (ZipArchive zipArchive = new ZipArchive(zipToOpen, ZipArchiveMode.Update))
                 {
@@ -338,7 +338,7 @@ namespace laht.info
                                 }
                                 else
                                 {
-                                    sb.Append(String.Format(CultureInfo.InvariantCulture, "0 0 0 0 0\n"));
+                                    sb.Append(String.Format(CultureInfo.InvariantCulture, "0 0 0 0 0 0\n"));
                                     len++;
                                 }
                             }
