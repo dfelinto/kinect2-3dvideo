@@ -31,7 +31,7 @@ class plyConverter:
         l_depth = []
         l_rgb = []
         for i in obj:
-            l_depth.append((256*i[2]/7))
+            l_depth.append((256*i[2]/8))
             l_rgb.append((i[3], i[4], i[5]))
         return l_depth, l_rgb
 
