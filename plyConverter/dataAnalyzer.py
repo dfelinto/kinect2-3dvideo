@@ -48,7 +48,9 @@ class plyConverter:
                 elif y_max < y:
                     y_max = y
 
-                if z_min > z:
+                if z == 0:
+                    pass
+                elif z_min > z:
                     z_min = z
                 elif z_max < z:
                     z_max = z
