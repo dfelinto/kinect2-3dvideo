@@ -58,9 +58,9 @@ class plyConverter:
                 _id += 1
 
         print(
-                "x [{0} ~ {1}]\n"   \
-                "y [{2} ~ {3}]\n"   \
-                "z [{4} ~ {5}]\n\n" \
+                "x [{0:0.2f} ~ {1:0.2f}]\n"   \
+                "y [{2:0.2f} ~ {3:0.2f}]\n"   \
+                "z [{4:0.2f} ~ {5:0.2f}]\n\n" \
                 .format(x_min, x_max, y_min, y_max, z_min, z_max))
         return x_min, x_max, y_min, y_max, z_min, z_max
 
@@ -182,11 +182,11 @@ if __name__ == '__main__':
 
 
     # print out final results
-    print("\nFinal Results:\n\n")
+    print("\nFinal Results:\n")
     print(
-            "x [{0} ~ {1}]\n"   \
-            "y [{2} ~ {3}]\n"   \
-            "z [{4} ~ {5}]\n\n" \
+            "x [{0:0.2f} ~ {1:0.2f}]\n"   \
+            "y [{2:0.2f} ~ {3:0.2f}]\n"   \
+            "z [{4:0.2f} ~ {5:0.2f}]\n\n" \
             .format(x_min, x_max, y_min, y_max, z_min, z_max))
 
 # The tricky part is:
