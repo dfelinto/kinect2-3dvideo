@@ -22,7 +22,7 @@ class plyConverter:
 
     def ply2Info(self, path_plyIn, imgDir):
         list_depth, list_rgb, list_xyz = self._readPly(path_plyIn)
-        self._analyzeData(list_xyz)
+        return self._analyzeData(list_xyz)
 
     def _analyzeData(self, xyz):
         """calculate the minimum/maximum values"""
@@ -62,6 +62,7 @@ class plyConverter:
                 "y [{2} ~ {3}]\n"   \
                 "z [{4} ~ {5}]\n\n" \
                 .format(x_min, x_max, y_min, y_max, z_min, z_max))
+        return x_min, x_max, y_min, y_max, z_min, z_max
 
     def _readPly(self, filePath):
         obj_spec, obj, texture = import_ply.read(filePath)
@@ -143,6 +144,13 @@ if __name__ == '__main__':
     # path_plyIn = baseCloudDir + '/' + plyFylesList[0]
     # plyC.ply2Img(path_plyIn, baseImgDir)
 
+    x_min =  100000
+    x_max = -100000
+    y_min =  100000
+    y_max = -100000
+    z_min =  100000
+    z_max = -100000
+
     # ply to image conversion
     for index, plyFiles in enumerate(plyFylesList):
         path_plyIn = baseCloudDir + '/' + plyFylesList[index]
@@ -152,8 +160,34 @@ if __name__ == '__main__':
         progress_bar(index,len(plyFylesList))
         """
 
-        plyC.ply2Info(path_plyIn, baseImgDir)
+        _x_min, _x_max, \
+        _y_min, _y_max, \
+        _z_min, _z_max, \
+        = plyC.ply2Info(path_plyIn, baseImgDir)
 
+        if _x_min < x_min:
+            x_min = _x_min
+        elif _x_max > x_max:
+            x_max = _x_max
+
+        if _y_min < y_min:
+            y_min = _y_min
+        elif _y_max > y_max:
+            y_max = _y_max
+
+        if _z_min < z_min:
+            z_min = _z_min
+        elif _z_max > z_max:
+            z_max = _z_max
+
+
+    # print out final results
+    print("\nFinal Results:\n\n")
+    print(
+            "x [{0} ~ {1}]\n"   \
+            "y [{2} ~ {3}]\n"   \
+            "z [{4} ~ {5}]\n\n" \
+            .format(x_min, x_max, y_min, y_max, z_min, z_max))
 
 # The tricky part is:
 # you need to store only the depth in the image
