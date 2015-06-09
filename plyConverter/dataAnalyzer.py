@@ -12,7 +12,7 @@ class plyConverter:
     def ply2Img(self, path_plyIn, imgDir):
         list_depth, list_rgb, list_xyz = self._readPly(path_plyIn)
 
-        im_size = (self._width // 2, self._height // 2)
+        im_size = (self._width, self._height)
         im_rgb = self._createImg(list_rgb, "RGB", im_size)
         im_depth = self._createImg(list_depth, "L", im_size)
 
@@ -134,7 +134,7 @@ if __name__ == '__main__':
     print("Converting .ply files from :\n", baseCloudDir, "to: \n", baseImgDir, '\n')
 
     # instantiate ply Converter, get ply files
-    plyC = plyConverter(512, 424)
+    plyC = plyConverter(512 // 2, 424 // 2)
     plyFylesList = getFileList(baseCloudDir, '.ply')
 
     # # single ply to image convert test
