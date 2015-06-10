@@ -6,34 +6,50 @@ from PIL import Image
 import import_ply
 
 class plyConverter:
-    def __init__(self):
-        pass
+    def __init__(self, width, height):
+        self._width = width
+        self._height = height
 
     def ply2Img(self, path_plyIn, imgDir):
-        list_depth, list_rgb = self._readPly(path_plyIn)
-        im_size = (int(512/2), int(424/2))
+        list_xyz, list_rgb = self._readPly(path_plyIn)
+        im_size = (self._width, self._height)
 
         im_rgb = self._createImg(list_rgb, "RGB", im_size)
-        im_depth = self._createImg(list_depth, "L", im_size)
+        im_xyz = self._createImg(list_xyz, "RGB", im_size)
 
         cloudID = path_plyIn.split('/')[-1].strip('.ply').strip('cloud').zfill(4) # zero padding
-        self._saveImg(im_rgb, "rgb", imgDir, cloudID)
-        self._saveImg(im_depth, "depth", imgDir, cloudID)
+        #self._saveImg(im_rgb, "rgb", imgDir, cloudID)
+        self._saveImg(im_xyz, "xyz", imgDir, cloudID, use_lossless=True)
 
     def _readPly(self, filePath):
         obj_spec, obj, texture = import_ply.read(filePath)
         obj_out = [ e[1] for e in obj.items() ]
 
-        list_depth, list_rgb = self._getData(obj_out[0])
-        return list_depth, list_rgb
+        list_xyz, list_rgb = self._getData(obj_out[0])
+        return list_xyz, list_rgb
 
     def _getData(self, obj): # return 2 lists of tuples pixels (compliant with PIL format for image creation)
-        l_depth = []
+        min_x = -6.0
+        max_x = 6.0
+        min_y = -5.0
+        max_y = 5.0
+        min_z = 0.5
+        max_z = 8.0
+
+        range_x = 256.0 / (max_x - min_x)
+        range_y = 256.0 / (max_y - min_y)
+        range_z = 256.0 / (max_y - min_z)
+
+        l_xyz = []
         l_rgb = []
         for i in obj:
-            l_depth.append((256*i[2]/7))
+            x = (i[0] - min_x) * range_x
+            y = (i[1] - min_y) * range_y
+            z = (i[2] - min_z) * range_z
+            l_xyz.append((int(x), int(y), int(z)))
             l_rgb.append((i[3], i[4], i[5]))
-        return l_depth, l_rgb
+
+        return l_xyz, l_rgb
 
     def _createImg(self, imgData, mode, size):
 
@@ -43,14 +59,19 @@ class plyConverter:
         # im.getExtrema()
         return im
 
-    def _saveImg(self, img, imgType, outDir, prefix):
+    def _saveImg(self, img, imgType, outDir, prefix, use_lossless=False):
 
         imgDir_path = os.path.join(outDir, imgType)
         if not os.path.exists(imgDir_path):
             os.makedirs(imgDir_path) # create image dir next to /cloud..
-        img_path = os.path.join(imgDir_path, prefix + ".tga")
-        # print(img_path)
-        img.save(img_path)
+
+        if use_lossless:
+            img_path = os.path.join(imgDir_path, prefix + ".webp")
+            img.save(img_path, lossless=True)
+        else:
+            img_path = os.path.join(imgDir_path, prefix + ".tga")
+            # print(img_path)
+            img.save(img_path)
 
 
 def getFileList(basedir, suffix):
@@ -77,7 +98,7 @@ def progress_bar(item_count, total_count):
 if __name__ == '__main__':
 
     # Set cloud file name (has to be stored in ../data/)
-    cloudDirName = "cloud08-06-2015"
+    cloudDirName = "cloud09-06-2015-stool"
 
     # Define paths
     basedirScript = os.path.split(os.path.realpath(__file__))
@@ -91,7 +112,7 @@ if __name__ == '__main__':
     print("Converting .ply files from :\n", baseCloudDir, "to: \n", baseImgDir, '\n')
 
     # instantiate ply Converter, get ply files
-    plyC = plyConverter()
+    plyC = plyConverter(512//2, 424//2)
     plyFylesList = getFileList(baseCloudDir, '.ply')
 
     # # single ply to image convert test

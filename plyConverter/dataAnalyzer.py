@@ -123,7 +123,7 @@ def progress_bar(item_count, total_count):
 if __name__ == '__main__':
 
     # Set cloud file name (has to be stored in ../data/)
-    cloudDirName = "cloud08-06-2015"
+    cloudDirName = "cloud09-06-2015-stool"
 
     # Define paths
     basedirScript = os.path.split(os.path.realpath(__file__))
