@@ -6,13 +6,15 @@ from PIL import Image
 import import_ply
 
 class plyConverter:
-    def __init__(self):
-        pass
+    def __init__(self, width, height, rangeNearFar):
+        self._width = width
+        self._height = height
+        self._rangeNearFar = rangeNearFar
 
     def ply2Img(self, path_plyIn, imgDir):
         list_depth, list_rgb = self._readPly(path_plyIn)
-        im_size = (int(512/2), int(424/2))
 
+        im_size = (self._width, self._height)
         im_rgb = self._createImg(list_rgb, "RGB", im_size)
         im_depth = self._createImg(list_depth, "L", im_size)
 
@@ -30,8 +32,10 @@ class plyConverter:
     def _getData(self, obj): # return 2 lists of tuples pixels (compliant with PIL format for image creation)
         l_depth = []
         l_rgb = []
+        near = self._rangeNearFar[0]
+        far = self._rangeNearFar[1]
         for i in obj:
-            l_depth.append((256*i[2]/8))
+            l_depth.append(256*(i[2] - near)/(far - near))
             l_rgb.append((i[3], i[4], i[5]))
         return l_depth, l_rgb
 
@@ -48,7 +52,7 @@ class plyConverter:
         imgDir_path = os.path.join(outDir, imgType)
         if not os.path.exists(imgDir_path):
             os.makedirs(imgDir_path) # create image dir next to /cloud..
-        img_path = os.path.join(imgDir_path, prefix + ".tga")
+        img_path = os.path.join(imgDir_path, prefix + ".png")
         # print(img_path)
         img.save(img_path)
 
@@ -77,7 +81,7 @@ def progress_bar(item_count, total_count):
 if __name__ == '__main__':
 
     # Set cloud file name (has to be stored in ../data/)
-    cloudDirName = "cloud08-06-2015"
+    cloudDirName = "cloud09-06-2015-stool"
 
     # Define paths
     basedirScript = os.path.split(os.path.realpath(__file__))
@@ -91,7 +95,9 @@ if __name__ == '__main__':
     print("Converting .ply files from :\n", baseCloudDir, "to: \n", baseImgDir, '\n')
 
     # instantiate ply Converter, get ply files
-    plyC = plyConverter()
+    # rangeNearFar = (0.5,4.5) # near/far in meters
+    rangeNearFar = (0.0,8.0)
+    plyC = plyConverter(512 // 2, 424 // 2, rangeNearFar)
     plyFylesList = getFileList(baseCloudDir, '.ply')
 
     # # single ply to image convert test
@@ -103,6 +109,7 @@ if __name__ == '__main__':
         path_plyIn = baseCloudDir + '/' + plyFylesList[index]
         plyC.ply2Img(path_plyIn, baseImgDir)
         progress_bar(index,len(plyFylesList))
+    print('\n Done')
 
 
 
