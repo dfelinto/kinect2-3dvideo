@@ -29,6 +29,12 @@ THE SOFTWARE.
 //
 // http://laht.info
 
+// Modified version of the code from http://laht.info
+// ## Modifications (REASON: detail) ##
+// - WHOLE RECORDING: Record the rgb/depth of the whole scene (not only rgb/depth related to players detected by the kinect)
+// - FPS OPTIMIZATION: Raw recording of cameraPoints, colorPoints and colorFrameData in Reader_MultiSourceFrameArrived
+// afterwards converted in ASCII / .ply files in Converter_MultiSourceFrameArrived. Increase FPS yet taxes compiter's RAM.
+
 namespace laht.info
 {
     using System;
@@ -54,13 +60,13 @@ namespace laht.info
 
         private const int minNumOfPoints = 10000;
         private const int maxNumOfFrames = 1000;
-        private const int step = 2;
+        private const int step = 4; // defines image resolution, 1 is 512x424, 2 is 256x212, etc.
 
         private bool done = false;
-        private int count = 0;
 
         private ArrayList clouds = new ArrayList();
         private Stopwatch t0 = new Stopwatch();
+        private Stopwatch t1 = new Stopwatch();
 
 
         /// <summary>
@@ -113,6 +119,36 @@ namespace laht.info
         /// </summary>
         private CameraSpacePoint[] cameraPoints = null;
 
+        /// <summary>
+        /// Current recorded frame (counter)
+        /// </summary>
+        private int frameID = 0;
+
+        /// <summary>
+        /// Current recorded frame time stamp (for fps profiling)
+        /// </summary>
+        private long[] timeStamps = new long[maxNumOfFrames];
+
+        /// <summary>
+        /// Intermediate storage, 2nd level, for the depth to color frames description
+        /// </summary>
+        private int[][] frameDescription_array = new int[maxNumOfFrames][];
+
+        /// <summary>
+        /// Intermediate storage for raw cameraPoints[]
+        /// </summary>
+        private CameraSpacePoint[][] cameraPoints_array = new CameraSpacePoint[maxNumOfFrames][];
+
+        /// <summary>
+        /// Intermediate storage for raw colorPoints[]
+        /// </summary>
+        private ColorSpacePoint[][] colorPoints_array = new ColorSpacePoint[maxNumOfFrames][];
+
+        /// <summary>
+        /// Intermediate storage for raw colorFrameData[]
+        /// </summary>
+        private byte[][] colorFrameData_array = new byte[maxNumOfFrames][];
+
 
         /// <summary>
         /// Initializes a new instance of the MainWindow class.
@@ -121,7 +157,8 @@ namespace laht.info
         {
 
             //start clock
-            this.t0.Start();
+            this.t0.Start(); // local clock (restarted every frame)
+            this.t1.Start(); // global clock
 
             // get the kinectSensor object
             this.kinectSensor = KinectSensor.GetDefault();
@@ -153,16 +190,32 @@ namespace laht.info
             int colorWidth = colorFrameDescription.Width;
             int colorHeight = colorFrameDescription.Height;
 
+            // Print FraeDescription parameters
+            Console.WriteLine("Color (w/h): " + colorWidth + " x " + colorHeight);
+            Console.WriteLine("Depth (w/h): " + depthWidth + " x " + depthHeight);
+            Console.WriteLine("BytesPerPixels: " + this.bytesPerPixel);
+            Console.WriteLine("Recording resolution (w/h): " + depthWidth / step + " x " + depthHeight / step);
+
             // allocate space to put the pixels being received
             this.colorFrameData = new byte[colorWidth * colorHeight * this.bytesPerPixel];
 
             // open the sensor
             this.kinectSensor.Open();
 
+            // await user keyboard (or max number of rec. frames) to stop recording
+            // meanwhile, Reader_MultiSourceFrameArrived keeps running (recording rgb/depth) in the background
             Console.WriteLine("Press any key to exit..");
             Console.ReadLine();
 
-            Console.WriteLine("Flushing data to disk..");
+            // stop recording cloud files
+            done = true;
+
+            // flush buffered data, convert to .ply format
+            this.Converter_MultiSourceFrameArrived();
+
+            // write .ply files to disk
+            Console.WriteLine("Recording data to disk..");
+
             using (FileStream zipToOpen = new FileStream(this.path.Replace("/", "-"), FileMode.Create))
             {
                 using (ZipArchive zipArchive = new ZipArchive(zipToOpen, ZipArchiveMode.Update))
@@ -174,12 +227,14 @@ namespace laht.info
                         {
                             writer.WriteLine(clouds[i]);
                         }
-                        Console.WriteLine("Flushing " + i + " of " + clouds.Count);
+                        //Console.WriteLine("Flushing " + (i + 1) + " of " + clouds.Count);
+                        Console.WriteLine("Recording cloud " + (i + 1) + " of " + clouds.Count);
                     }
                     Console.WriteLine("Shuting down..");
+                    Console.WriteLine("WARNING: manually closing this window may result in corrupted recorded file");
+                    Console.WriteLine("-> Close when created .zip file size is non O");
                 }
             }
-
 
             this.multiFrameSourceReader.Dispose();
             this.multiFrameSourceReader = null;
@@ -189,8 +244,8 @@ namespace laht.info
                 this.kinectSensor.Close();
                 this.kinectSensor = null;
             }
-        }
 
+        }
 
 
         /// <summary>
@@ -202,9 +257,8 @@ namespace laht.info
         {
             if (!done)
             {
-                if (t0.ElapsedMilliseconds > 41)
+                if (t0.ElapsedMilliseconds > 41) // Upper bound on FPS (record every Nth milliseconds)
                 {
-                     //Console.WriteLine(t0.ElapsedMilliseconds);
                     t0.Restart();
 
                     int depthWidth = 0;
@@ -286,87 +340,126 @@ namespace laht.info
                         }
                     }
 
-
-
                     // we got all frames
                     if (multiSourceFrameProcessed && depthFrameProcessed && colorFrameProcessed && bodyIndexFrameProcessed)
                     {
-                        StringBuilder sb = new StringBuilder();
-                        int len = 0;
 
                         this.coordinateMapper.MapDepthFrameToColorSpace(this.depthFrameData, this.colorPoints);
                         this.coordinateMapper.MapDepthFrameToCameraSpace(this.depthFrameData, this.cameraPoints);
 
-                        // loop over each row and column of the depth
-                        for (int y = 0; y < depthHeight; y += step)
-                        {
-                            for (int x = 0; x < depthWidth; x += step)
-                            {
+                        // Shallow copy of kinect data prior to storage. Storing directly the cameraPoints, etc. in the arrays
+                        // would result in arrays of "fake" objects pointing to the same frame (i.e. resulting in a .ply encoding
+                        // a single frame N times afer applying the Converter_MultiSourceFrameArrived method)
+                        CameraSpacePoint[] cameraPoints_shallowCopy = (CameraSpacePoint[])this.cameraPoints.Clone();
+                        ColorSpacePoint[] colorPoints_shallowCopy = (ColorSpacePoint[])this.colorPoints.Clone();
+                        byte[] colorFrameData_shallowCopy = (byte[])this.colorFrameData.Clone();
 
-                                // calculate index into depth array
-                                int depthIndex = (y * depthWidth) + x;
+                        // recording kinect data in arrays
+                        this.cameraPoints_array[this.frameID] = cameraPoints_shallowCopy;
+                        this.colorPoints_array[this.frameID] = colorPoints_shallowCopy;
+                        this.colorFrameData_array[this.frameID] = colorFrameData_shallowCopy;
+                        this.frameDescription_array[this.frameID] = new int[] { depthWidth, depthHeight, colorWidth, colorHeight };
 
-                                CameraSpacePoint p = this.cameraPoints[depthIndex];
+                        // recording time stamp for FPS profiling
+                        timeStamps[this.frameID] = t1.ElapsedMilliseconds;
 
-                                // retrieve the depth to color mapping for the current depth pixel
-                                ColorSpacePoint colorPoint = this.colorPoints[depthIndex];
+                        // increment frame counter
+                        this.frameID++;
 
-                                byte r = 0; byte g = 0; byte b = 0;
-
-                                // make sure the depth pixel maps to a valid point in color space
-                                int colorX = (int)Math.Floor(colorPoint.X + 0.5);
-                                int colorY = (int)Math.Floor(colorPoint.Y + 0.5);
-
-                                if ((colorX >= 0) && (colorX < colorWidth) && (colorY >= 0) && (colorY < colorHeight))
-                                {
-                                    // calculate index into color array
-                                    int colorIndex = ((colorY * colorWidth) + colorX) * this.bytesPerPixel;
-
-                                    // set source for copy to the color pixel
-                                    int displayIndex = depthIndex * this.bytesPerPixel;
-
-                                    b = this.colorFrameData[colorIndex++];
-                                    g = this.colorFrameData[colorIndex++];
-                                    r = this.colorFrameData[colorIndex++];
-
-                                }
-
-                                if (!(Double.IsInfinity(p.X)) && !(Double.IsInfinity(p.Y)) && !(Double.IsInfinity(p.Z)))
-                                {
-                                    sb.Append(String.Format(CultureInfo.InvariantCulture, "{0} {1} {2} {3} {4} {5}\n", p.X, p.Y, p.Z, r, g, b));
-                                    len++;
-                                }
-                                else
-                                {
-                                    sb.Append(String.Format(CultureInfo.InvariantCulture, "0 0 0 0 0 0\n"));
-                                    len++;
-                                }
-                            }
-                        }
-
-                        if (len > minNumOfPoints && count < maxNumOfFrames)
-                        {
-                            String header = "ply \n" +
-                                        "format ascii 1.0 \n" +
-                                        "element vertex " + len + "\n" +
-                                        "property float x \n" +
-                                        "property float y \n" +
-                                        "property float z \n" +
-                                        "property uchar red \n" +
-                                        "property uchar green \n" +
-                                        "property uchar blue \n" +
-                                        "end_header \n";
-                            sb.Insert(0, header);
-                            clouds.Add(sb.ToString());
-                            Console.WriteLine("Wrote cloud " + count);
-                            count++;
-                        }
-                        else if (count == maxNumOfFrames)
+                        if (this.frameID == maxNumOfFrames)
                         {
                             Console.WriteLine("Done.. Press any key to exit");
                             done = true;
                         }
                     }
+                }
+            }
+        }
+
+
+        /// <summary>
+        /// Convert raw stored kinect data to .ply format
+        /// </summary>
+        private void Converter_MultiSourceFrameArrived()
+        {
+            for (int frameIndex = 0; frameIndex < this.frameID; frameIndex += 1)
+            {
+                // access data stored in arrays
+                this.cameraPoints = this.cameraPoints_array[frameIndex];
+                this.colorPoints = this.colorPoints_array[frameIndex];
+                this.colorFrameData = this.colorFrameData_array[frameIndex];
+
+                int depthWidth = frameDescription_array[frameIndex][0];
+                int depthHeight = frameDescription_array[frameIndex][1];
+                int colorWidth = frameDescription_array[frameIndex][2];
+                int colorHeight = frameDescription_array[frameIndex][3];
+
+                StringBuilder sb = new StringBuilder();
+                int len = 0;
+
+                // loop over each row and column of the depth
+                for (int y = 0; y < depthHeight; y += step)
+                {
+                    for (int x = 0; x < depthWidth; x += step)
+                    {
+                        // calculate index into depth array
+                        int depthIndex = (y * depthWidth) + x;
+
+                        CameraSpacePoint p = this.cameraPoints[depthIndex];
+
+                        // retrieve the depth to color mapping for the current depth pixel
+                        ColorSpacePoint colorPoint = this.colorPoints[depthIndex];
+
+                        byte r = 0; byte g = 0; byte b = 0;
+
+                        // make sure the depth pixel maps to a valid point in color space
+                        int colorX = (int)Math.Floor(colorPoint.X + 0.5);
+                        int colorY = (int)Math.Floor(colorPoint.Y + 0.5);
+
+                        if ((colorX >= 0) && (colorX < colorWidth) && (colorY >= 0) && (colorY < colorHeight))
+                        {
+                            // calculate index into color array
+                            int colorIndex = ((colorY * colorWidth) + colorX) * this.bytesPerPixel;
+
+                            // set source for copy to the color pixel
+                            int displayIndex = depthIndex * this.bytesPerPixel;
+
+                            b = this.colorFrameData[colorIndex++];
+                            g = this.colorFrameData[colorIndex++];
+                            r = this.colorFrameData[colorIndex++];
+
+                        }
+
+                        if (!(Double.IsInfinity(p.X)) && !(Double.IsInfinity(p.Y)) && !(Double.IsInfinity(p.Z)))
+                        {
+                            sb.Append(String.Format(CultureInfo.InvariantCulture, "{0} {1} {2} {3} {4} {5} {6}\n", p.X, p.Y, p.Z, r, g, b, timeStamps[frameIndex]));
+                            len++;
+                        }
+                        else
+                        {
+                            sb.Append(String.Format(CultureInfo.InvariantCulture, "0 0 0 0 0 0 0\n"));
+                            len++;
+                        }
+                    }
+                }
+
+                if (len > minNumOfPoints)
+                {
+                    String header = "ply \n" +
+                                "format ascii 1.0 \n" +
+                                "element vertex " + len + "\n" +
+                                "property float x \n" +
+                                "property float y \n" +
+                                "property float z \n" +
+                                "property uchar red \n" +
+                                "property uchar green \n" +
+                                "property uchar blue \n" +
+                                "property float timeStamp \n" +
+                                "end_header \n";
+                    sb.Insert(0, header);
+                    clouds.Add(sb.ToString());
+                    Console.WriteLine("Flushing cloud " + (frameIndex+1) + " of " + this.frameID);
+                    // Console.WriteLine("Wrote cloud " + frameIndex);
                 }
             }
         }
