@@ -52,7 +52,7 @@ class plyConverter:
         imgDir_path = os.path.join(outDir, imgType)
         if not os.path.exists(imgDir_path):
             os.makedirs(imgDir_path) # create image dir next to /cloud..
-        img_path = os.path.join(imgDir_path, prefix + ".png")
+        img_path = os.path.join(imgDir_path, prefix + ".tga")
         # print(img_path)
         img.save(img_path)
 
@@ -95,7 +95,6 @@ if __name__ == '__main__':
     print("Converting .ply files from :\n", baseCloudDir, "to: \n", baseImgDir, '\n')
 
     # instantiate ply Converter, get ply files
-    # rangeNearFar = (0.5,4.5) # near/far in meters
     rangeNearFar = (0.0,8.0)
     plyC = plyConverter(512 // 2, 424 // 2, rangeNearFar)
     plyFylesList = getFileList(baseCloudDir, '.ply')
@@ -110,18 +109,3 @@ if __name__ == '__main__':
         plyC.ply2Img(path_plyIn, baseImgDir)
         progress_bar(index,len(plyFylesList))
     print('\n Done')
-
-
-
-# The tricky part is:
-# you need to store only the depth in the image
-# so you need to calculate the depth for a given pixel
-
-### Handy fonctions ###
-
-## round
-# obj = [[ round(elem, 2) for elem in obj_item ] for obj_item in obj]
-
-## sort by x[0] then -x[1]
-# obj_sort = sorted(obj, key = lambda x : (x[0], -x[1]))
-
